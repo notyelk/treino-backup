@@ -299,44 +299,90 @@
   }
 
   .ex-log{
-    padding:6px 12px 12px;
-    display:flex;
-    align-items:center;
-    flex-wrap:wrap;
-    gap:7px 8px;
-  }
-  .ex-log input{
-    width:56px;
+    margin:8px 12px 12px;
+    padding:10px 11px;
     background:var(--surface-2);
     border:1px solid var(--line);
-    border-radius:8px;
-    padding:6px 7px;
-    font-family:'IBM Plex Mono', monospace;
-    font-size:13px;
-    color:var(--text);
-    min-height:30px;
+    border-radius:12px;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
   }
-  .ex-log .x{color:var(--text-muted);font-size:12px;}
-  .ex-log button{
+  .sub .ex-log{margin:8px 0 0;background:var(--surface);}
+  .log-head{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    gap:10px;
+  }
+  .log-label{
+    font-size:10px;
+    font-weight:600;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    color:var(--text-muted);
+    white-space:nowrap;
+  }
+  .log-hist{
+    font-size:11px;
+    font-family:'IBM Plex Mono', monospace;
+    color:var(--text-muted);
+    text-align:right;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    min-width:0;
+  }
+  .log-hist b{color:var(--good);font-family:'IBM Plex Sans', sans-serif;font-weight:600;}
+  .log-hist .down{color:var(--busy);font-family:'IBM Plex Sans', sans-serif;font-weight:600;}
+  .log-row{
+    display:flex;
+    align-items:center;
+    gap:7px;
+  }
+  .log-field{
+    position:relative;
+    flex:1 1 0;
+    min-width:0;
+  }
+  .log-field.reps{flex:0 0 58px;}
+  .log-field input{
+    width:100%;
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:9px;
+    padding:9px 32px 9px 10px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:14px;
+    color:var(--text);
+    min-height:38px;
+  }
+  .log-field .unit{
+    position:absolute;
+    right:9px; top:50%;
+    transform:translateY(-50%);
+    font-size:10.5px;
+    color:var(--text-muted);
+    pointer-events:none;
+  }
+  .log-x{flex:none;color:var(--text-muted);font-size:13px;}
+  .log-save{
+    flex:none;
+    display:flex;
+    align-items:center;
+    gap:5px;
     background:var(--accent);
     color:var(--accent-ink);
     border:none;
-    border-radius:8px;
-    padding:6px 11px;
-    min-height:30px;
-    font-size:11.5px;
+    border-radius:9px;
+    padding:0 13px;
+    min-height:38px;
+    font-size:12.5px;
     font-weight:600;
     font-family:'IBM Plex Sans', sans-serif;
     cursor:pointer;
   }
-  .ex-log .hist{
-    flex-basis:100%;
-    font-size:11px;
-    color:var(--text-muted);
-    font-family:'IBM Plex Mono', monospace;
-  }
-  .ex-log .hist b{color:var(--good);font-family:'IBM Plex Sans', sans-serif;}
-  .sub .ex-log{padding:6px 0 0;}
+  .log-save svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:3.4;}
 
   .ex-subs{
     display:none;
@@ -810,20 +856,31 @@ var IMG_B64 = {"Ab_Crunch_Machine":["/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAoHCAkIBgo
     var log = getLog(exName);
     var last = log.length ? log[log.length-1] : null;
     var id = loggerRegistry.push(exName) - 1;
-    var histParts = log.slice(-4).map(function(e){ return fmtW(e.w)+"kg×"+e.r; });
+    var histParts = log.slice(-3).map(function(e){ return fmtW(e.w)+"×"+e.r; });
     var histText = histParts.length ? histParts.join(" · ") : "Sem registro ainda";
     var delta = "";
     if(log.length >= 2){
       var diff = log[log.length-1].w - log[log.length-2].w;
-      if(diff > 0) delta = ' <b>▲ +'+fmtW(diff)+'kg</b>';
-      else if(diff < 0) delta = ' <span style="color:var(--busy)">▼ '+fmtW(diff)+'kg</span>';
+      if(diff > 0) delta = ' <b>▲'+fmtW(diff)+'</b>';
+      else if(diff < 0) delta = ' <span class="down">▼'+fmtW(diff)+'</span>';
     }
     return '<div class="ex-log" data-logger-id="'+id+'">'+
-      '<input type="number" inputmode="decimal" class="log-kg" placeholder="kg" step="0.5" min="0" value="'+(last?fmtW(last.w):'')+'">'+
-      '<span class="x">×</span>'+
-      '<input type="number" inputmode="numeric" class="log-reps" placeholder="reps" min="1" value="'+(last?last.r:'')+'">'+
-      '<button type="button" class="log-save">Salvar</button>'+
-      '<div class="hist">'+histText+delta+'</div>'+
+      '<div class="log-head">'+
+        '<span class="log-label">Carga</span>'+
+        '<span class="log-hist">'+histText+delta+'</span>'+
+      '</div>'+
+      '<div class="log-row">'+
+        '<div class="log-field">'+
+          '<input type="number" inputmode="decimal" class="log-kg" placeholder="0" step="0.5" min="0" value="'+(last?fmtW(last.w):'')+'">'+
+          '<span class="unit">kg</span>'+
+        '</div>'+
+        '<span class="log-x">×</span>'+
+        '<div class="log-field reps">'+
+          '<input type="number" inputmode="numeric" class="log-reps" placeholder="0" min="1" value="'+(last?last.r:'')+'">'+
+          '<span class="unit">reps</span>'+
+        '</div>'+
+        '<button type="button" class="log-save"><svg><use href="#i-check"/></svg>Salvar</button>'+
+      '</div>'+
     '</div>';
   }
 
