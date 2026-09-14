@@ -209,22 +209,73 @@
     border:1px solid var(--line);
     position:relative;
     overflow:hidden;
+    cursor:pointer;
   }
   .ex-pic.small{width:68px;height:52px;}
+  .ex-pic:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  .ex-pic::after{
+    content:"";
+    position:absolute; right:4px; bottom:4px;
+    width:16px;height:16px;
+    border-radius:50%;
+    background:rgba(0,0,0,.55);
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round'%3E%3Ccircle cx='10.5' cy='10.5' r='6.5'/%3E%3Cline x1='15.3' y1='15.3' x2='21' y2='21'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;
+    background-position:center;
+    background-size:9px 9px;
+  }
   .ex-pic img{
     position:absolute;inset:0;
     width:100%;height:100%;
     object-fit:cover;
     display:block;
   }
-  .ex-pic img.pf-pose-a{animation:pfShowA 2.6s ease-in-out infinite;}
-  .ex-pic img.pf-pose-b{animation:pfShowB 2.6s ease-in-out infinite;}
+  .pf-pose-a{animation:pfShowA 2.6s ease-in-out infinite;}
+  .pf-pose-b{animation:pfShowB 2.6s ease-in-out infinite;}
   @keyframes pfShowA{ 0%,42%{opacity:1} 50%,92%{opacity:0} 100%{opacity:1} }
   @keyframes pfShowB{ 0%,42%{opacity:0} 50%,92%{opacity:1} 100%{opacity:0} }
   @media (prefers-reduced-motion: reduce){
-    .ex-pic img.pf-pose-a{animation:none;opacity:1;}
-    .ex-pic img.pf-pose-b{animation:none;opacity:0;}
+    .pf-pose-a{animation:none;opacity:1;}
+    .pf-pose-b{animation:none;opacity:0;}
   }
+
+  .lightbox{
+    position:fixed; inset:0;
+    background:rgba(10,8,6,.82);
+    display:none;
+    align-items:center; justify-content:center;
+    padding:20px;
+    z-index:50;
+  }
+  .lightbox.open{display:flex;}
+  .lightbox-card{
+    position:relative;
+    width:100%; max-width:420px;
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:16px;
+    overflow:hidden;
+    box-shadow:0 20px 50px rgba(0,0,0,.4);
+  }
+  .lightbox-pic{position:relative; width:100%; aspect-ratio:4/3; background:var(--surface-2);}
+  .lightbox-pic img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;}
+  .lightbox-close{
+    position:absolute; top:10px; right:10px;
+    width:34px;height:34px;
+    border-radius:50%;
+    background:rgba(10,8,6,.6);
+    color:#fff;
+    border:none;
+    font-size:20px;
+    line-height:1;
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;
+    z-index:2;
+  }
+  .lightbox-info{padding:14px 16px 18px;}
+  .lightbox-name{font-family:'Oswald',sans-serif;text-transform:uppercase;font-weight:600;font-size:17px;color:var(--text);}
+  .lightbox-meta{font-size:12px;color:var(--accent);font-weight:600;margin-top:4px;}
+  .lightbox-cue{font-size:13px;color:var(--text-muted);line-height:1.5;margin-top:8px;}
 
   .ex-main{flex:1;min-width:0;}
   .ex-name{font-size:14.5px;font-weight:600;line-height:1.3;}
@@ -376,6 +427,21 @@
   <footer class="note">
     As fotos (banco de dados público, Free Exercise DB) ficam salvas junto com a página — carregam uma vez (~1,5&nbsp;MB no total) e depois funcionam sem gastar seu 4G. Marcações de progresso reiniciam a cada novo dia; os pesos registrados ficam guardados por exercício pra você acompanhar sua evolução. Séries × repetições são um ponto de partida — ajuste ao seu nível.
   </footer>
+</div>
+
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="lightbox-card">
+    <button type="button" class="lightbox-close" id="lightboxClose" aria-label="Fechar">&times;</button>
+    <div class="lightbox-pic">
+      <img class="pf-pose-a" id="lightboxImgA" alt="">
+      <img class="pf-pose-b" id="lightboxImgB" alt="">
+    </div>
+    <div class="lightbox-info">
+      <div class="lightbox-name" id="lightboxName"></div>
+      <div class="lightbox-meta" id="lightboxMeta"></div>
+      <div class="lightbox-cue" id="lightboxCue"></div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -642,6 +708,16 @@ var IMG_B64 = {"Ab_Crunch_Machine":["/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAoHCAkIBgo
     return WEEKDAY_MAP[new Date().getDay()] || null;
   }
 
+  var EX_INFO = {};
+  DAYS.forEach(function(day){
+    day.exercises.forEach(function(e){
+      if(!EX_INFO[e.name]) EX_INFO[e.name] = {eq:e.eq, pattern:e.pattern};
+      e.subs.forEach(function(s){
+        if(!EX_INFO[s.name]) EX_INFO[s.name] = {eq:s.eq, pattern:s.pattern};
+      });
+    });
+  });
+
   var state = {
     activeDay: (function(){
       try{
@@ -661,15 +737,68 @@ var IMG_B64 = {"Ab_Crunch_Machine":["/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAoHCAkIBgo
   var todaySuggested = suggestedDay();
   var loggerRegistry = [];
 
-  function picPhoto(exName, small){
+  var lightboxEl = document.getElementById("lightbox");
+  var lightboxImgA = document.getElementById("lightboxImgA");
+  var lightboxImgB = document.getElementById("lightboxImgB");
+  var lightboxName = document.getElementById("lightboxName");
+  var lightboxMeta = document.getElementById("lightboxMeta");
+  var lightboxCue = document.getElementById("lightboxCue");
+  var lightboxCloseBtn = document.getElementById("lightboxClose");
+
+  function openLightbox(exName){
+    var srcs = photoSrcs(exName);
+    if(!srcs) return;
+    var info = EX_INFO[exName] || {};
+    lightboxImgA.src = srcs[0];
+    lightboxImgB.src = srcs[1];
+    lightboxName.textContent = exName;
+    lightboxMeta.textContent = info.eq ? EQ_LABEL[info.eq] : "";
+    lightboxCue.textContent = info.pattern ? (CUE[info.pattern]||"") : "";
+    lightboxEl.classList.add("open");
+    lightboxEl.setAttribute("aria-hidden","false");
+    document.body.style.overflow = "hidden";
+  }
+  function closeLightbox(){
+    lightboxEl.classList.remove("open");
+    lightboxEl.setAttribute("aria-hidden","true");
+    document.body.style.overflow = "";
+  }
+  lightboxEl.addEventListener("click", function(ev){
+    if(ev.target === lightboxEl) closeLightbox();
+  });
+  lightboxCloseBtn.addEventListener("click", closeLightbox);
+  document.addEventListener("keydown", function(ev){
+    if(ev.key === "Escape" && lightboxEl.classList.contains("open")) closeLightbox();
+  });
+  contentEl.addEventListener("click", function(ev){
+    var pic = ev.target.closest("[data-lightbox]");
+    if(pic) openLightbox(pic.getAttribute("data-lightbox"));
+  });
+  contentEl.addEventListener("keydown", function(ev){
+    if(ev.key !== "Enter" && ev.key !== " ") return;
+    var pic = ev.target.closest("[data-lightbox]");
+    if(pic){ ev.preventDefault(); openLightbox(pic.getAttribute("data-lightbox")); }
+  });
+
+  function escAttr(s){
+    return String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;");
+  }
+
+  function photoSrcs(exName){
     var id = IMG_MAP[exName];
     var pair = id && IMG_B64[id];
-    if(!pair){
-      return '<span class="ex-pic'+(small?' small':'')+'" aria-hidden="true"></span>';
+    if(!pair) return null;
+    return ["data:image/jpeg;base64,"+pair[0], "data:image/jpeg;base64,"+pair[1]];
+  }
+
+  function picPhoto(exName, small){
+    var srcs = photoSrcs(exName);
+    if(!srcs){
+      return '<span class="ex-pic'+(small?' small':'')+'"></span>';
     }
-    return '<span class="ex-pic'+(small?' small':'')+'" aria-hidden="true">'+
-      '<img class="pf-pose-a" src="data:image/jpeg;base64,'+pair[0]+'" alt="" loading="lazy">'+
-      '<img class="pf-pose-b" src="data:image/jpeg;base64,'+pair[1]+'" alt="" loading="lazy">'+
+    return '<span class="ex-pic'+(small?' small':'')+'" data-lightbox="'+escAttr(exName)+'" role="button" tabindex="0" aria-label="Ampliar foto de '+escAttr(exName)+'">'+
+      '<img class="pf-pose-a" src="'+srcs[0]+'" alt="" loading="lazy">'+
+      '<img class="pf-pose-b" src="'+srcs[1]+'" alt="" loading="lazy">'+
     '</span>';
   }
 
